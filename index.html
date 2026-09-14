@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phân Công Trực Nhật & Nhiệm Vụ Lớp Học</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for Excel Support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- html2canvas for Exporting PNG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Lexend', sans-serif; }
+        .duty-card { transition: all 0.2s ease-in-out; }
+        .duty-card:hover { transform: translateY(-2px); }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; font-size: 12pt; }
+            .shadow-lg, .shadow-md, .shadow-sm { box-shadow: none !important; }
+            .border-slate-200 { border-color: #000 !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen p-3 md:p-6">
+
+    <div class="max-w-7xl mx-auto space-y-5">
+        
+        <!-- HEADER & ACTIONS BAR -->
+        <header class="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 text-white p-3 rounded-xl shadow-md shadow-indigo-200">
+                    <i class="fa-solid me-0 fa-calendar-check text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold text-slate-800">Phân Công Trực Nhật & Nhiệm Vụ</h1>
+                    <p class="text-xs md:text-sm text-slate-500">Tự động hóa phân công trực nhật, trực phạt và nhiệm vụ thể lực Nam</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <button onclick="openStudentModal()" class="flex-1 md:flex-none px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-xl border border-indigo-200 text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-users-gear"></i> Quản Lý Học Sinh (<span id="totalCount">0</span>)
+                </button>
+                <button onclick="openExemptModal()" class="flex-1 md:flex-none px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-xl border border-emerald-200 text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-user-shield"></i> Miễn Trực (<span id="exemptCount">0</span>)
+                </button>
+                <button onclick="openPenaltyModal()" class="flex-1 md:flex-none px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium rounded-xl border border-rose-200 text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-gavel"></i> Trực Phạt (<span id="penaltyCount">0</span>)
+                </button>
+            </div>
+        </header>
+
+        <!-- CONTROLS BOARD -->
+        <div class="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 space-y-4 no-print">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Chế Độ Ghép Cặp Trực Nhật</label>
+                    <select id="pairingMode" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium">
+                        <option value="random">🎲 Ngẫu nhiên hoàn toàn</option>
+                        <option value="mixed">👫 1 Nam + 1 Nữ</option>
+                        <option value="same">👬/👭 Cùng giới tính (Nam-Nam / Nữ-Nữ)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Số HS Trực/Ca</label>
+                    <select id="dutyPerShift" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 font-medium">
+                        <option value="2" selected>2 Học sinh / Ca</option>
+                        <option value="3">3 Học sinh / Ca</option>
+                        <option value="1">1 Học sinh / Ca</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tùy Chọn Nhiệm Vụ Nam</label>
+                    <div class="flex items-center gap-4 py-2 text-sm font-medium">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="enableChairs" checked class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <span class="ml-2 text-slate-700">🪑 Rinh ghế (Sáng T2)</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="enableWater" checked class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <span class="ml-2 text-slate-700">🚰 Rinh nước (Hằng ngày)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3 pt-2 border-t border-slate-100">
+                <button onclick="generateSchedule()" class="flex-1 md:flex-none px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md shadow-indigo-200 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-shuffle"></i> TẠO LỊCH PHÂN CÔNG
+                </button>
+                <button onclick="loadSampleData()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition">
+                    <i class="fa-solid fa-database"></i> Nạp 40 HS Mẫu
+                </button>
+                <button onclick="exportPNG()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition ml-auto">
+                    <i class="fa-solid fa-file-image"></i> Xuất Ảnh PNG
+                </button>
+                <button onclick="window.print()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition">
+                    <i class="fa-solid fa-print"></i> In / Xuất PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- MAIN SCHEDULE DISPLAY -->
+        <div id="scheduleContainer" class="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-200 space-y-6">
+            
+            <div class="text-center pb-4 border-b border-slate-100">
+                <h2 class="text-2xl font-extrabold text-slate-800 uppercase tracking-wide">BẢNG PHÂN CÔNG TRỰC NHẬT & NHIỆM VỤ LỚP HỌC</h2>
+                <p class="text-xs text-slate-500 mt-1" id="scheduleWeekInfo">Áp dụng cho tuần học từ Thứ Hai đến Thứ Sáu</p>
+            </div>
+
+            <!-- MAIN GRID 5 DAYS -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4" id="scheduleGrid">
+                <!-- Days 2 to 6 populated via JS -->
+            </div>
+
+            <!-- SPECIAL TASKS SUMMARY FOOTER (CHAIRS & WATER SUMMARY) -->
+            <div id="specialTasksSummary" class="bg-slate-50 rounded-xl p-4 border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div class="flex items-start gap-3">
+                    <div class="bg-amber-100 text-amber-700 p-2.5 rounded-lg text-lg"><i class="fa-solid fa-chair"></i></div>
+                    <div>
+                        <div class="font-bold text-slate-700 uppercase">Ghi chú Rinh Ghế (Sáng Thứ 2)</div>
+                        <p class="text-slate-500 mt-0.5">Yêu cầu học sinh Nam tập trung lúc 6h45 để rinh ghế xuống sân và khi kết thúc chào cờ rinh ghế lên lại lớp.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3">
+                    <div class="bg-cyan-100 text-cyan-700 p-2.5 rounded-lg text-lg"><i class="fa-solid fa-bottle-water"></i></div>
+                    <div>
+                        <div class="font-bold text-slate-700 uppercase">Ghi chú Rinh Nước Uống</div>
+                        <p class="text-slate-500 mt-0.5">Học sinh Nam trực rinh nước kiểm tra bình nước của lớp vào đầu buổi, rinh bình mới từ phòng bảo vệ/kho khi hết.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MODAL 1: STUDENT ROSTER MANAGEMENT -->
+    <div id="studentModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl m-4 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-users text-indigo-600"></i> Quản Lý Danh Sách Học Sinh
+                </h3>
+                <button onclick="closeStudentModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            
+            <div class="p-4 border-b border-slate-100 space-y-3 bg-slate-50/50">
+                
+                <!-- TAB SWITCHER -->
+                <div class="flex gap-2 border-b border-slate-200 pb-2">
+                    <button onclick="switchAddTab('bulk')" id="tabBulkBtn" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg transition">
+                        <i class="fa-solid fa-paste"></i> Dán Hàng Loạt (Bằng tay)
+                    </button>
+                    <button onclick="switchAddTab('single')" id="tabSingleBtn" class="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                        <i class="fa-solid fa-user-plus"></i> Thêm 1 Học Sinh
+                    </button>
+                    <input type="file" id="excelInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                    <button onclick="document.getElementById('excelInput').click()" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition ml-auto">
+                        <i class="fa-solid fa-file-excel"></i> File Excel / CSV
+                    </button>
+                </div>
+
+                <!-- TAB 1: BULK TEXTAREA (DÁN BẰNG TAY) -->
+                <div id="bulkAddSection" class="space-y-2">
+                    <textarea id="bulkTextInput" rows="4" class="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Dán danh sách học sinh vào đây, mỗi dòng 1 tên. Ví dụ:
+Nguyễn Văn A
+Trần Thị B (Nữ)
+Lê Văn C - Nữ
+Phạm Văn D"></textarea>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-400 italic">*Mặc định là Nam nếu không ghi thêm từ 'Nữ'</span>
+                        <button onclick="handleBulkAdd()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition">
+                            <i class="fa-solid fa-plus"></i> Nạp Danh Sách Này
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB 2: SINGLE INPUT -->
+                <div id="singleAddSection" class="hidden">
+                    <form id="addStudentForm" onsubmit="handleAddStudent(event)" class="flex gap-2">
+                        <input type="text" id="newStudentName" placeholder="Nhập tên học sinh mới..." class="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                        <select id="newStudentGender" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium">
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                        </select>
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl text-sm hover:bg-indigo-700 transition">Thêm</button>
+                    </form>
+                </div>
+
+            </div>
+
+            <!-- STUDENT LIST CONTAINER -->
+            <div class="p-4 overflow-y-auto flex-1">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-bold text-slate-500 uppercase">Danh sách hiện tại:</span>
+                    <button onclick="clearAllStudents()" class="text-xs text-rose-600 hover:underline font-semibold">
+                        <i class="fa-solid fa-trash-can"></i> Xóa Tất Cả
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" id="studentListContainer">
+                    <!-- Dynamic Student Cards -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: EXEMPTIONS -->
+    <div id="exemptModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl m-4 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-emerald-50">
+                <h3 class="font-bold text-emerald-800 flex items-center gap-2">
+                    <i class="fa-solid fa-user-shield"></i> Chọn Học Sinh Miễn Trực Nhật
+                </h3>
+                <button onclick="closeExemptModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <p class="text-xs text-slate-500 mb-3">Tích chọn học sinh được miễn trực (Ban cán sự, lý do sức khỏe...):</p>
+                <div class="space-y-2" id="exemptListContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: PENALTY DUTY -->
+    <div id="penaltyModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl m-4 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-rose-50">
+                <h3 class="font-bold text-rose-800 flex items-center gap-2">
+                    <i class="fa-solid fa-gavel"></i> Thêm Học Sinh Trực Phạt (Nội Quy)
+                </h3>
+                <button onclick="closePenaltyModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-4 border-b border-slate-100 space-y-3">
+                <div class="flex gap-2">
+                    <select id="penaltyStudentSelect" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500 font-medium">
+                        <!-- Options filled via JS -->
+                    </select>
+                    <input type="number" id="penaltyShiftsInput" value="10" min="1" max="50" class="w-20 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-center font-bold">
+                    <button onclick="addPenaltyStudent()" class="px-4 py-2 bg-rose-600 text-white font-medium rounded-xl text-sm hover:bg-rose-700 transition">Phạt</button>
+                </div>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <h4 class="text-xs font-bold text-slate-500 uppercase mb-2">Danh sách đang chịu phạt trực nhật:</h4>
+                <div class="space-y-2" id="penaltyListContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // STATE
+        let students = [];
+        let exemptIds = new Set();
+        let penalties = {}; // { studentId: remainingShifts }
+        let currentSchedule = {};
+
+        // INITIAL SAMPLE DATA
+        const sampleNames = [
+            { name: "Nguyễn Văn An", gender: "Nam" }, { name: "Trần Thị Bích", gender: "Nữ" },
+            { name: "Lê Hoàng Cường", gender: "Nam" }, { name: "Phạm Minh Dung", gender: "Nữ" },
+            { name: "Đỗ Anh Dũng", gender: "Nam" }, { name: "Vũ Thị Giang", gender: "Nữ" },
+            { name: "Hoàng Văn Hùng", gender: "Nam" }, { name: "Bùi Thị Hương", gender: "Nữ" },
+            { name: "Đặng Khoa Khánh", gender: "Nam" }, { name: "Nông Thị Lan", gender: "Nữ" },
+            { name: "Phan Văn Minh", gender: "Nam" }, { name: "Trịnh Thị Nam", gender: "Nữ" },
+            { name: "Lương Hải Nam", gender: "Nam" }, { name: "Vũ Thị Oanh", gender: "Nữ" },
+            { name: "Hồ Văn Phong", gender: "Nam" }, { name: "Ngô Thị Phương", gender: "Nữ" },
+            { name: "Võ Minh Quân", gender: "Nam" }, { name: "Đặng Thị Quỳnh", gender: "Nữ" },
+            { name: "Bùi Văn Sơn", gender: "Nam" }, { name: "Nguyễn Thị Thảo", gender: "Nữ" },
+            { name: "Phạm Quốc Trang", gender: "Nam" }, { name: "Trần Thị Tuyết", gender: "Nữ" },
+            { name: "Lê Văn Tuấn", gender: "Nam" }, { name: "Đỗ Thị Uyên", gender: "Nữ" },
+            { name: "Hoàng Văn Việt", gender: "Nam" }, { name: "Phan Thị Yến", gender: "Nữ" },
+            { name: "Trần Văn Bình", gender: "Nam" }, { name: "Nguyễn Thị Chi", gender: "Nữ" },
+            { name: "Đạt Văn Đạt", gender: "Nam" }, { name: "Lê Thị Hoa", gender: "Nữ" },
+            { name: "Vũ Minh Khang", gender: "Nam" }, { name: "Ngô Thị Mai", gender: "Nữ" },
+            { name: "Nguyễn Huỳnh Đức", gender: "Nam" }, { name: "Trần Ngọc Nhật", gender: "Nam" },
+            { name: "Lê Văn Phát", gender: "Nam" }, { name: "Bùi Hoàng Sang", gender: "Nam" },
+            { name: "Phạm Văn Thái", gender: "Nam" }, { name: "Nguyễn Văn Vinh", gender: "Nam" },
+            { name: "Đặng Thị Như", gender: "Nữ" }, { name: "Vũ Thị Tâm", gender: "Nữ" }
+        ];
+
+        function init() {
+            loadSampleData();
+        }
+
+        function loadSampleData() {
+            students = sampleNames.map((s, idx) => ({ id: idx + 1, name: s.name, gender: s.gender }));
+            exemptIds.clear();
+            penalties = {};
+            updateCounts();
+            generateSchedule();
+        }
+
+        function updateCounts() {
+            document.getElementById('totalCount').innerText = students.length;
+            document.getElementById('exemptCount').innerText = exemptIds.size;
+            document.getElementById('penaltyCount').innerText = Object.keys(penalties).length;
+        }
+
+        // SWITCH TAB METHOD FOR ADDING STUDENTS
+        function switchAddTab(tab) {
+            const bulkSec = document.getElementById('bulkAddSection');
+            const singleSec = document.getElementById('singleAddSection');
+            const bulkBtn = document.getElementById('tabBulkBtn');
+            const singleBtn = document.getElementById('tabSingleBtn');
+
+            if(tab === 'bulk') {
+                bulkSec.classList.remove('hidden');
+                singleSec.classList.add('hidden');
+                bulkBtn.className = "px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg transition";
+                singleBtn.className = "px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition";
+            } else {
+                bulkSec.classList.add('hidden');
+                singleSec.classList.remove('hidden');
+                singleBtn.className = "px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg transition";
+                bulkBtn.className = "px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition";
+            }
+        }
+
+        // STUDENT MODAL & HANDLERS
+        function openStudentModal() {
+            renderStudentList();
+            document.getElementById('studentModal').classList.remove('hidden');
+        }
+        function closeStudentModal() { document.getElementById('studentModal').classList.add('hidden'); }
+
+        // 1. ADD BULK TEXT (DÁN BẰNG TAY NHIỀU DÒNG)
+        function handleBulkAdd() {
+            const text = document.getElementById('bulkTextInput').value;
+            if(!text.trim()) {
+                alert('Vui lòng dán danh sách học sinh!');
+                return;
+            }
+            const lines = text.split('\n');
+            let addedCount = 0;
+
+            lines.forEach((line, idx) => {
+                let trimmed = line.trim();
+                if(trimmed) {
+                    let gender = "Nam";
+                    const lower = trimmed.toLowerCase();
+                    if(lower.includes('nữ') || lower.includes('nu')) {
+                        gender = "Nữ";
+                    }
+                    // Clean name string
+                    let name = trimmed.replace(/[-–(]?\s*(nữ|nu|nam)\s*\)?/gi, '').trim();
+                    if(!name) name = trimmed;
+                    
+                    students.push({ id: Date.now() + idx, name: name, gender: gender });
+                    addedCount++;
+                }
+            });
+
+            document.getElementById('bulkTextInput').value = '';
+            updateCounts();
+            renderStudentList();
+            alert(`Đã thêm thành công ${addedCount} học sinh vào danh sách!`);
+        }
+
+        // 2. ADD SINGLE STUDENT
+        function handleAddStudent(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('newStudentName');
+            const genderInput = document.getElementById('newStudentGender');
+            const name = nameInput.value.trim();
+            if(!name) return;
+
+            students.push({ id: Date.now(), name: name, gender: genderInput.value });
+            nameInput.value = '';
+            updateCounts();
+            renderStudentList();
+        }
+
+        function removeStudent(id) {
+            students = students.filter(s => s.id !== id);
+            exemptIds.delete(id);
+            delete penalties[id];
+            updateCounts();
+            renderStudentList();
+        }
+
+        function clearAllStudents() {
+            if(confirm('Bạn có chắc chắn muốn xóa toàn bộ danh sách học sinh?')) {
+                students = [];
+                exemptIds.clear();
+                penalties = {};
+                updateCounts();
+                renderStudentList();
+            }
+        }
+
+        function renderStudentList() {
+            const container = document.getElementById('studentListContainer');
+            if(students.length === 0) {
+                container.innerHTML = `<p class="col-span-2 text-xs text-slate-400 italic text-center py-4">Chưa có học sinh nào. Hãy dán danh sách hoặc nhập file!</p>`;
+                return;
+            }
+            container.innerHTML = students.map(s => `
+                <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${s.gender==='Nam'?'bg-blue-100 text-blue-600':'bg-pink-100 text-pink-600'}">
+                            ${s.gender==='Nam'?'♂':'♀'}
+                        </span>
+                        <span class="text-sm font-medium text-slate-700">${s.name}</span>
+                    </div>
+                    <button onclick="removeStudent(${s.id})" class="text-slate-400 hover:text-rose-600 text-xs px-2 py-1"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            `).join('');
+        }
+
+        // FILE EXCEL PARSER
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+                
+                let newStudents = [];
+                json.forEach((row, i) => {
+                    if(row.length > 0) {
+                        let name = String(row[0] || '').trim();
+                        let gender = String(row[1] || 'Nam').trim();
+                        if(name && name.toLowerCase() !== 'họ và tên' && name.toLowerCase() !== 'tên') {
+                            if(!['nam', 'nữ', 'nu'].includes(gender.toLowerCase())) gender = 'Nam';
+                            else gender = gender.toLowerCase().includes('nữ') || gender.toLowerCase().includes('nu') ? 'Nữ' : 'Nam';
+                            newStudents.push({ id: Date.now() + i, name: name, gender: gender });
+                        }
+                    }
+                });
+
+                if(newStudents.length > 0) {
+                    students = newStudents;
+                    exemptIds.clear();
+                    penalties = {};
+                    updateCounts();
+                    renderStudentList();
+                    alert(`Đã nhập thành công ${newStudents.length} học sinh từ file Excel!`);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // EXEMPTIONS MODAL
+        function openExemptModal() {
+            const container = document.getElementById('exemptListContainer');
+            container.innerHTML = students.map(s => `
+                <label class="flex items-center justify-between p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 cursor-pointer">
+                    <span class="text-sm font-medium text-slate-700">${s.name} (${s.gender})</span>
+                    <input type="checkbox" onchange="toggleExempt(${s.id})" ${exemptIds.has(s.id)?'checked':''} class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+                </label>
+            `).join('');
+            document.getElementById('exemptModal').classList.remove('hidden');
+        }
+        function closeExemptModal() { document.getElementById('exemptModal').classList.add('hidden'); }
+        function toggleExempt(id) {
+            if(exemptIds.has(id)) exemptIds.delete(id);
+            else exemptIds.add(id);
+            updateCounts();
+        }
+
+        // PENALTY MODAL
+        function openPenaltyModal() {
+            const select = document.getElementById('penaltyStudentSelect');
+            select.innerHTML = students.filter(s => !exemptIds.has(s.id)).map(s => `
+                <option value="${s.id}">${s.name} (${s.gender})</option>
+            `).join('');
+            renderPenaltyList();
+            document.getElementById('penaltyModal').classList.remove('hidden');
+        }
+        function closePenaltyModal() { document.getElementById('penaltyModal').classList.add('hidden'); }
+        
+        function addPenaltyStudent() {
+            const select = document.getElementById('penaltyStudentSelect');
+            const shiftsInput = document.getElementById('penaltyShiftsInput');
+            const id = Number(select.value);
+            const shifts = Number(shiftsInput.value) || 10;
+            if(id) {
+                penalties[id] = (penalties[id] || 0) + shifts;
+                updateCounts();
+                renderPenaltyList();
+            }
+        }
+        function removePenalty(id) {
+            delete penalties[id];
+            updateCounts();
+            renderPenaltyList();
+        }
+        function renderPenaltyList() {
+            const container = document.getElementById('penaltyListContainer');
+            const penaltyEntries = Object.entries(penalties);
+            if(penaltyEntries.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 italic">Chưa có học sinh nào bị phạt.</p>`;
+                return;
+            }
+            container.innerHTML = penaltyEntries.map(([id, shifts]) => {
+                const student = students.find(s => s.id === Number(id));
+                if(!student) return '';
+                return `
+                    <div class="flex items-center justify-between p-2.5 bg-rose-50 rounded-xl border border-rose-200">
+                        <span class="text-sm font-medium text-rose-800">${student.name}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="bg-rose-200 text-rose-800 text-xs font-bold px-2 py-0.5 rounded-full">${shifts} buổi còn lại</span>
+                            <button onclick="removePenalty(${id})" class="text-rose-400 hover:text-rose-700 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // CORE GENERATION LOGIC WITH SPECIAL MALE TASKS
+        function generateSchedule() {
+            if(students.length === 0) {
+                alert('Vui lòng thêm học sinh hoặc dán danh sách!');
+                return;
+            }
+
+            const pairingMode = document.getElementById('pairingMode').value;
+            const dutyPerShift = Number(document.getElementById('dutyPerShift').value);
+            const enableChairs = document.getElementById('enableChairs').checked;
+            const enableWater = document.getElementById('enableWater').checked;
+
+            const days = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"];
+            const availableStudents = students.filter(s => !exemptIds.has(s.id));
+            const maleStudents = availableStudents.filter(s => s.gender === 'Nam');
+
+            let penaltyPool = [];
+            Object.keys(penalties).forEach(id => {
+                const s = students.find(st => st.id === Number(id));
+                if(s && !exemptIds.has(s.id)) penaltyPool.push(s);
+            });
+
+            const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+
+            let pool = shuffle(availableStudents);
+            let poolMales = shuffle(maleStudents);
+
+            let newSchedule = {};
+
+            days.forEach((day, dayIndex) => {
+                newSchedule[day] = {
+                    sang: [],
+                    chieu: [],
+                    chairs: [],
+                    waterSang: [],
+                    waterChieu: []
+                };
+
+                // 1. RINH GHẾ (Sáng Thứ 2 - CHỈ NAM)
+                if(dayIndex === 0 && enableChairs) {
+                    let chairsAssigned = [];
+                    for(let i=0; i<2; i++) {
+                        if(poolMales.length === 0) poolMales = shuffle(maleStudents);
+                        if(poolMales.length > 0) chairsAssigned.push(poolMales.pop());
+                    }
+                    newSchedule[day].chairs = chairsAssigned;
+                }
+
+                // 2. TRỰC NHẬT SÁNG & CHIỀU
+                ['sang', 'chieu'].forEach(shift => {
+                    let assigned = [];
+
+                    // Prioritize Penalty Students first
+                    while(assigned.length < dutyPerShift && penaltyPool.length > 0) {
+                        const penalizedStudent = penaltyPool.shift();
+                        assigned.push(penalizedStudent);
+                    }
+
+                    // Fill remaining with standard pairing rules
+                    while(assigned.length < dutyPerShift) {
+                        if(pool.length === 0) pool = shuffle(availableStudents);
+                        let candidate = pool.pop();
+                        
+                        if(pairingMode === 'mixed' && assigned.length > 0) {
+                            const targetGender = assigned[0].gender === 'Nam' ? 'Nữ' : 'Nam';
+                            const genderMatchIdx = pool.findIndex(s => s.gender === targetGender);
+                            if(genderMatchIdx !== -1) {
+                                candidate = pool.splice(genderMatchIdx, 1)[0];
+                            }
+                        }
+                        assigned.push(candidate);
+                    }
+
+                    newSchedule[day][shift] = assigned;
+
+                    // 3. RINH NƯỚC (CHỈ NAM)
+                    if(enableWater) {
+                        if(poolMales.length === 0) poolMales = shuffle(maleStudents);
+                        let waterBoy = poolMales.pop() || maleStudents[0];
+                        if(shift === 'sang') newSchedule[day].waterSang = [waterBoy];
+                        else newSchedule[day].waterChieu = [waterBoy];
+                    }
+                });
+            });
+
+            currentSchedule = newSchedule;
+            renderSchedule();
+        }
+
+        // RENDER SCHEDULE GRID
+        function renderSchedule() {
+            const grid = document.getElementById('scheduleGrid');
+            const days = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"];
+
+            grid.innerHTML = days.map(day => {
+                const data = currentSchedule[day];
+                if(!data) return '';
+
+                return `
+                    <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden flex flex-col justify-between">
+                        <div class="bg-indigo-600 text-white text-center py-2 font-bold text-sm tracking-wide">
+                            ${day}
+                        </div>
+
+                        <div class="p-3 space-y-3 flex-1">
+                            
+                            <!-- RINH GHẾ (NẾU CÓ) -->
+                            ${data.chairs && data.chairs.length > 0 ? `
+                                <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs">
+                                    <div class="font-bold text-amber-800 flex items-center gap-1 mb-1">
+                                        <i class="fa-solid fa-chair text-amber-600"></i> Rinh Ghế (Sáng T2 - Nam)
+                                    </div>
+                                    <div class="space-y-1">
+                                        ${data.chairs.map(s => `<div class="font-medium text-amber-900">• ${s.name}</div>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- BUỔI SÁNG -->
+                            <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
+                                <div class="text-xs font-bold text-indigo-700 flex items-center justify-between border-b border-slate-100 pb-1">
+                                    <span><i class="fa-solid fa-sun text-amber-500 mr-1"></i> SÁNG</span>
+                                </div>
+                                <div class="space-y-1">
+                                    ${data.sang.map(s => renderStudentBadge(s)).join('')}
+                                </div>
+                                ${data.waterSang && data.waterSang.length > 0 ? `
+                                    <div class="mt-2 pt-1.5 border-t border-slate-100 text-[11px] text-cyan-700 font-medium flex items-center gap-1">
+                                        <i class="fa-solid fa-bottle-water text-cyan-500"></i> Nước: <span class="font-semibold">${data.waterSang[0].name}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <!-- BUỔI CHIỀU -->
+                            <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
+                                <div class="text-xs font-bold text-indigo-700 flex items-center justify-between border-b border-slate-100 pb-1">
+                                    <span><i class="fa-solid fa-moon text-indigo-400 mr-1"></i> CHIỀU</span>
+                                </div>
+                                <div class="space-y-1">
+                                    ${data.chieu.map(s => renderStudentBadge(s)).join('')}
+                                </div>
+                                ${data.waterChieu && data.waterChieu.length > 0 ? `
+                                    <div class="mt-2 pt-1.5 border-t border-slate-100 text-[11px] text-cyan-700 font-medium flex items-center gap-1">
+                                        <i class="fa-solid fa-bottle-water text-cyan-500"></i> Nước: <span class="font-semibold">${data.waterChieu[0].name}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderStudentBadge(student) {
+            if(!student) return '';
+            const isPenalty = penalties[student.id] !== undefined;
+            return `
+                <div class="flex items-center justify-between text-xs py-0.5">
+                    <span class="font-medium ${student.gender==='Nam'?'text-blue-700':'text-pink-700'} flex items-center gap-1">
+                        <span>${student.gender==='Nam'?'♂':'♀'}</span> ${student.name}
+                    </span>
+                    ${isPenalty ? `<span title="Trực phạt" class="text-rose-600 font-bold text-[10px]"><i class="fa-solid fa-gavel"></i></span>` : ''}
+                </div>
+            `;
+        }
+
+        // EXPORT TO PNG
+        function exportPNG() {
+            const container = document.getElementById('scheduleContainer');
+            html2canvas(container, { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'lich-truc-nhat-lop-hoc.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        // INIT ON LOAD
+        window.onload = init;
+    </script>
+</body>
+</html>
